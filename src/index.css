@@ -1,0 +1,140 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap');
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #2F2F2F 0%, #8B4513 100%);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.wood-button {
+  background: linear-gradient(145deg, #CD853F 0%, #8B4513 100%);
+  border: 3px solid #654321;
+  border-radius: 12px;
+  color: white;
+  font-weight: bold;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 0 #3E2723, 0 6px 10px rgba(0, 0, 0, 0.3);
+  transition: all 0.1s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.wood-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 #3E2723, 0 8px 15px rgba(0, 0, 0, 0.4);
+}
+
+.wood-button:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 #3E2723, 0 3px 5px rgba(0, 0, 0, 0.3);
+}
+
+.wood-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.wood-button-gold {
+  background: linear-gradient(145deg, #FFD700 0%, #DAA520 100%);
+  border: 3px solid #B8860B;
+  box-shadow: 0 4px 0 #8B6914, 0 6px 10px rgba(0, 0, 0, 0.3);
+  color: #3E2723;
+  text-shadow: none;
+}
+
+.wood-button-gold:hover:not(:disabled) {
+  box-shadow: 0 6px 0 #8B6914, 0 8px 15px rgba(255, 215, 0, 0.5);
+}
+
+.wood-button-gold:active:not(:disabled) {
+  box-shadow: 0 2px 0 #8B6914, 0 3px 5px rgba(0, 0, 0, 0.3);
+}
+
+.smoke-particle {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.weather-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.rain-drop {
+  position: absolute;
+  width: 2px;
+  height: 20px;
+  background: linear-gradient(transparent, rgba(174, 194, 224, 0.8));
+  animation: rainFall 0.8s linear infinite;
+}
+
+@keyframes rainFall {
+  0% { transform: translateY(-20px); }
+  100% { transform: translateY(100vh); }
+}
+
+.wind-line {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: windBlow 2s linear infinite;
+}
+
+@keyframes windBlow {
+  0% { transform: translateX(-100%); opacity: 0; }
+  50% { opacity: 1; }
+  100% { transform: translateX(100vw); opacity: 0; }
+}
+
+.score-bar {
+  height: 12px;
+  border-radius: 6px;
+  background: #3E2723;
+  overflow: hidden;
+}
+
+.score-bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 1s ease-out;
+}
+
+.star {
+  display: inline-block;
+  font-size: 32px;
+  color: #654321;
+  transition: all 0.3s ease;
+}
+
+.star.active {
+  color: #FFD700;
+  text-shadow: 0 0 10px rgba(255, 215, 0, 0.8);
+  animation: starPop 0.5s ease-out;
+}
+
+@keyframes starPop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
