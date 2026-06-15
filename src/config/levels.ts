@@ -88,3 +88,15 @@ export const DEFAULT_LEVELS: LevelConfig[] = [
 ];
 
 export const STORAGE_KEY = 'sweet_potato_kiln_save';
+export const ENDLESS_STORAGE_KEY = 'sweet_potato_kiln_endless_record';
+
+export const ENDLESS_CHALLENGE = {
+  INITIAL_OPT_RANGE: [170, 230] as [number, number],
+  MIN_OPT_RANGE: [150, 250] as [number, number],
+  NARROW_STEP: 5,
+  INITIAL_MAX_WOOD: 10,
+  MIN_MAX_WOOD: 1,
+  WOOD_REDUCE_STEP: 1,
+  BASE_TARGET_SCORE: 60,
+  TARGET_SCORE_INCREMENT: 2
+};

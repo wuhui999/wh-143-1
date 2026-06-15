@@ -4,10 +4,11 @@ import { WoodButton } from '../components/Controls/WoodButton';
 
 export function HomePage() {
   const navigate = useNavigate();
-  const { gameSave } = useGameStore();
+  const { gameSave, getEndlessHighestStreak } = useGameStore();
 
   const hasProgress = gameSave.levels.some(l => l.bestScore > 0);
   const currentLevel = gameSave.levels.find(l => l.id === gameSave.currentLevel) || gameSave.levels[0];
+  const highestStreak = getEndlessHighestStreak();
 
   const icons = ['🔥', '🍠', '🌡️', '🪵', '💨', '✨'];
 
@@ -68,6 +69,21 @@ export function HomePage() {
         >
           📋 选择关卡
         </WoodButton>
+
+        <div className="relative">
+          <WoodButton
+            onClick={() => navigate('/endless')}
+            variant="gold"
+            className="px-8 py-4 text-lg w-full"
+          >
+            🔥 连烤挑战
+          </WoodButton>
+          {highestStreak > 0 && (
+            <div className="absolute -top-2 -right-2 bg-kiln-gold text-kiln-dark text-xs font-bold px-2 py-1 rounded-full">
+              最高 {highestStreak} 关
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="relative z-10 mt-10 text-center text-kiln-light/70 text-sm max-w-md">

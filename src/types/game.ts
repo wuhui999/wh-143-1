@@ -34,6 +34,21 @@ export interface GameSave {
   lastPlayTime: number;
 }
 
+export interface EndlessChallengeState {
+  isActive: boolean;
+  currentStreak: number;
+  totalScore: number;
+  currentOptimalRange: [number, number];
+  currentMaxAddWood: number;
+  currentTargetScore: number;
+}
+
+export interface EndlessChallengeResult {
+  streak: number;
+  totalScore: number;
+  highestStreak: number;
+}
+
 export interface GameState {
   currentLevel: number;
   temperature: number;

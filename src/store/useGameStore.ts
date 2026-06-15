@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import type { GameState, Score, WeatherType, TempPoint, GameSave } from '../types/game';
-import { DEFAULT_LEVELS, ADD_WOOD_TEMP, ADD_WOOD_BONUS_DECAY, GAME_DURATION } from '../config/levels';
+import type { GameState, Score, WeatherType, TempPoint, GameSave, EndlessChallengeState, LevelConfig } from '../types/game';
+import { DEFAULT_LEVELS, ADD_WOOD_TEMP, ADD_WOOD_BONUS_DECAY, GAME_DURATION, ENDLESS_CHALLENGE } from '../config/levels';
 import { calculateTemperature, getSmokeColor, isInOptimalWindow } from '../utils/temperature';
 import { calculateScore, getStars } from '../utils/scoring';
-import { getOrCreateSave, saveGame, updateLevelProgress } from '../utils/storage';
+import { getOrCreateSave, saveGame, updateLevelProgress, saveEndlessRecord, getEndlessHighestStreak, createNewSave } from '../utils/storage';
 
 export const FLIP_KILN_TEMP_BOOST = 15;
 export const FLIP_KILN_DURATION = 5;
@@ -12,6 +12,8 @@ export const MAX_FLIP_KILN = 1;
 
 interface GameStore extends GameState {
   gameSave: GameSave;
+  endlessChallenge: EndlessChallengeState;
+  endlessResult: { streak: number; totalScore: number; highestStreak: number } | null;
   startGame: (levelId: number) => void;
   addWood: () => void;
   flipKiln: () => void;
@@ -21,8 +23,13 @@ interface GameStore extends GameState {
   resetGame: () => void;
   clearResult: () => void;
   updateSaveAfterResult: () => void;
-  getCurrentLevel: () => typeof DEFAULT_LEVELS[number];
+  getCurrentLevel: () => LevelConfig;
   resetSave: () => void;
+  startEndlessChallenge: () => void;
+  endEndlessChallenge: () => void;
+  advanceEndlessLevel: () => boolean;
+  getEndlessHighestStreak: () => number;
+  clearEndlessResult: () => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -47,9 +54,32 @@ export const useGameStore = create<GameStore>((set, get) => ({
   statsFlipKilnUsed: 0,
   statsWarningActions: 0,
   gameSave: getOrCreateSave(),
+  endlessChallenge: {
+    isActive: false,
+    currentStreak: 0,
+    totalScore: 0,
+    currentOptimalRange: [...ENDLESS_CHALLENGE.INITIAL_OPT_RANGE] as [number, number],
+    currentMaxAddWood: ENDLESS_CHALLENGE.INITIAL_MAX_WOOD,
+    currentTargetScore: ENDLESS_CHALLENGE.BASE_TARGET_SCORE
+  },
+  endlessResult: null,
 
   getCurrentLevel: () => {
     const state = get();
+    if (state.endlessChallenge.isActive) {
+      return {
+        id: state.endlessChallenge.currentStreak + 1,
+        name: `连烤第 ${state.endlessChallenge.currentStreak + 1} 关`,
+        targetScore: state.endlessChallenge.currentTargetScore,
+        maxAddWood: state.endlessChallenge.currentMaxAddWood,
+        optimalTempRange: state.endlessChallenge.currentOptimalRange,
+        tempChangeSpeed: Math.min(1.0 + state.endlessChallenge.currentStreak * 0.05, 1.5),
+        weatherProbability: Math.min(0.1 + state.endlessChallenge.currentStreak * 0.02, 0.3),
+        unlocked: true,
+        bestScore: 0,
+        stars: 0
+      };
+    }
     const level = state.gameSave.levels.find(l => l.id === state.currentLevel);
     return level || DEFAULT_LEVELS[0];
   },
@@ -76,7 +106,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       weatherWarningTimer: 0,
       statsAddWoodUsed: 0,
       statsFlipKilnUsed: 0,
-      statsWarningActions: 0
+      statsWarningActions: 0,
+      endlessChallenge: {
+        isActive: false,
+        currentStreak: 0,
+        totalScore: 0,
+        currentOptimalRange: [...ENDLESS_CHALLENGE.INITIAL_OPT_RANGE] as [number, number],
+        currentMaxAddWood: ENDLESS_CHALLENGE.INITIAL_MAX_WOOD,
+        currentTargetScore: ENDLESS_CHALLENGE.BASE_TARGET_SCORE
+      },
+      endlessResult: null
     });
   },
 
@@ -272,9 +311,128 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   resetSave: () => {
-    const { createNewSave, saveGame } = require('../utils/storage');
     const newSave = createNewSave();
     saveGame(newSave);
     set({ gameSave: newSave });
+  },
+
+  startEndlessChallenge: () => {
+    set({
+      endlessChallenge: {
+        isActive: true,
+        currentStreak: 0,
+        totalScore: 0,
+        currentOptimalRange: [...ENDLESS_CHALLENGE.INITIAL_OPT_RANGE] as [number, number],
+        currentMaxAddWood: ENDLESS_CHALLENGE.INITIAL_MAX_WOOD,
+        currentTargetScore: ENDLESS_CHALLENGE.BASE_TARGET_SCORE
+      },
+      endlessResult: null,
+      currentLevel: 1,
+      temperature: 80,
+      tempHistory: [{ time: 0, temperature: 80 }],
+      addWoodRemaining: ENDLESS_CHALLENGE.INITIAL_MAX_WOOD,
+      weather: 'sunny',
+      smokeColor: 'white',
+      isPlaying: true,
+      gameTime: 0,
+      result: null,
+      optimalWindowActive: false,
+      addWoodBonus: 0,
+      weatherTimer: 0,
+      flipKilnRemaining: MAX_FLIP_KILN,
+      flipKilnActive: false,
+      flipKilnTimer: 0,
+      weatherWarning: null,
+      weatherWarningTimer: 0,
+      statsAddWoodUsed: 0,
+      statsFlipKilnUsed: 0,
+      statsWarningActions: 0
+    });
+  },
+
+  endEndlessChallenge: () => {
+    const state = get();
+    const highestStreak = saveEndlessRecord(
+      state.endlessChallenge.currentStreak,
+      state.endlessChallenge.totalScore
+    );
+    set({
+      endlessResult: {
+        streak: state.endlessChallenge.currentStreak,
+        totalScore: state.endlessChallenge.totalScore,
+        highestStreak
+      },
+      endlessChallenge: {
+        ...state.endlessChallenge,
+        isActive: false
+      }
+    });
+  },
+
+  advanceEndlessLevel: () => {
+    const state = get();
+    if (!state.endlessChallenge.isActive || !state.result) return false;
+
+    const level = state.getCurrentLevel();
+    if (state.result.total < level.targetScore) {
+      return false;
+    }
+
+    const newStreak = state.endlessChallenge.currentStreak + 1;
+    const newTotalScore = state.endlessChallenge.totalScore + state.result.total;
+
+    const [currentMin, currentMax] = state.endlessChallenge.currentOptimalRange;
+    const [minMin, minMax] = ENDLESS_CHALLENGE.MIN_OPT_RANGE;
+    const newOptMin = Math.min(currentMin + ENDLESS_CHALLENGE.NARROW_STEP, minMin);
+    const newOptMax = Math.max(currentMax - ENDLESS_CHALLENGE.NARROW_STEP, minMax);
+
+    const newMaxWood = Math.max(
+      state.endlessChallenge.currentMaxAddWood - ENDLESS_CHALLENGE.WOOD_REDUCE_STEP,
+      ENDLESS_CHALLENGE.MIN_MAX_WOOD
+    );
+
+    const newTargetScore = ENDLESS_CHALLENGE.BASE_TARGET_SCORE +
+      newStreak * ENDLESS_CHALLENGE.TARGET_SCORE_INCREMENT;
+
+    set({
+      endlessChallenge: {
+        isActive: true,
+        currentStreak: newStreak,
+        totalScore: newTotalScore,
+        currentOptimalRange: [newOptMin, newOptMax] as [number, number],
+        currentMaxAddWood: newMaxWood,
+        currentTargetScore: newTargetScore
+      },
+      currentLevel: newStreak + 1,
+      temperature: 80,
+      tempHistory: [{ time: 0, temperature: 80 }],
+      addWoodRemaining: newMaxWood,
+      weather: 'sunny',
+      smokeColor: 'white',
+      isPlaying: true,
+      gameTime: 0,
+      result: null,
+      optimalWindowActive: false,
+      addWoodBonus: 0,
+      weatherTimer: 0,
+      flipKilnRemaining: MAX_FLIP_KILN,
+      flipKilnActive: false,
+      flipKilnTimer: 0,
+      weatherWarning: null,
+      weatherWarningTimer: 0,
+      statsAddWoodUsed: 0,
+      statsFlipKilnUsed: 0,
+      statsWarningActions: 0
+    });
+
+    return true;
+  },
+
+  getEndlessHighestStreak: () => {
+    return getEndlessHighestStreak();
+  },
+
+  clearEndlessResult: () => {
+    set({ endlessResult: null });
   }
 }));
