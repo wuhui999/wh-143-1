@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { GameState, Score, WeatherType, TempPoint, GameSave } from '../types/game';
-import { DEFAULT_LEVELS, ADD_WOOD_TEMP, ADD_WOOD_BONUS_DECAY } from '../config/levels';
+import { DEFAULT_LEVELS, ADD_WOOD_TEMP, ADD_WOOD_BONUS_DECAY, GAME_DURATION } from '../config/levels';
 import { calculateTemperature, getSmokeColor, isInOptimalWindow } from '../utils/temperature';
 import { calculateScore, getStars } from '../utils/scoring';
 import { getOrCreateSave, saveGame, updateLevelProgress } from '../utils/storage';
@@ -114,6 +114,24 @@ export const useGameStore = create<GameStore>((set, get) => ({
     } else if (newWeatherTimer > 5 && Math.random() < level.weatherProbability * 0.1) {
       newWeather = Math.random() < 0.5 ? 'wind' : 'rain';
       newWeatherTimer = 0;
+    }
+
+    if (newTime >= GAME_DURATION) {
+      const level = state.getCurrentLevel();
+      const score = calculateScore(newTemp, level.optimalTempRange);
+      set({
+        gameTime: GAME_DURATION,
+        temperature: newTemp,
+        tempHistory: newHistory,
+        smokeColor: newSmokeColor,
+        optimalWindowActive: inOptimal,
+        addWoodBonus: newAddWoodBonus,
+        weather: newWeather,
+        weatherTimer: newWeatherTimer,
+        isPlaying: false,
+        result: score
+      });
+      return;
     }
 
     set({

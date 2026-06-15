@@ -7,6 +7,7 @@ import { KilnBody } from '../components/Kiln/KilnBody';
 import { AddWoodBtn, HarvestBtn } from '../components/Controls/WoodButton';
 import { WeatherIndicator } from '../components/Weather/WeatherIndicator';
 import { getScoreComment } from '../utils/scoring';
+import { GAME_DURATION } from '../config/levels';
 
 export function KilnPage() {
   const navigate = useNavigate();
@@ -184,8 +185,23 @@ export function KilnPage() {
           <div className="text-kiln-gold font-title text-2xl">第 {level.id} 关 · {level.name}</div>
           <div className="text-kiln-light text-sm">目标 {level.targetScore} 分</div>
         </div>
-        <WeatherIndicator weather={weather} />
+        <div className="flex flex-col items-end gap-1">
+          <div className={`text-xl font-bold px-3 py-1 rounded-full ${
+            isPlaying && Math.ceil(GAME_DURATION - gameTime) <= 10
+              ? 'bg-red-500 text-white animate-pulse'
+              : 'bg-kiln-charcoal/70 text-kiln-gold'
+          }`}>
+            ⏱️ {Math.ceil(Math.max(0, GAME_DURATION - gameTime))}s
+          </div>
+          <WeatherIndicator weather={weather} />
+        </div>
       </div>
+
+      {isPlaying && Math.ceil(GAME_DURATION - gameTime) <= 10 && (
+        <div className="bg-red-600 text-white text-center py-2 px-4 rounded-lg mb-4 font-bold text-lg animate-pulse shadow-lg">
+          ⚠️ 倒计时 {Math.ceil(GAME_DURATION - gameTime)} 秒！快出窖！
+        </div>
+      )}
 
       <div className="mb-4">
         <TempCurve
