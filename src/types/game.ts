@@ -47,4 +47,12 @@ export interface GameState {
   optimalWindowActive: boolean;
   addWoodBonus: number;
   weatherTimer: number;
+  flipKilnRemaining: number;
+  flipKilnActive: boolean;
+  flipKilnTimer: number;
+  weatherWarning: WeatherType | null;
+  weatherWarningTimer: number;
+  statsAddWoodUsed: number;
+  statsFlipKilnUsed: number;
+  statsWarningActions: number;
 }

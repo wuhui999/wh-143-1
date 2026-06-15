@@ -80,3 +80,50 @@ export function HarvestBtn({ onHarvest, disabled = false, isOptimal = false }: H
     </WoodButton>
   );
 }
+
+interface FlipKilnBtnProps {
+  remaining: number;
+  maxFlip: number;
+  onFlip: () => void;
+  disabled?: boolean;
+  isActive?: boolean;
+  remainingTime?: number;
+}
+
+export function FlipKilnBtn({
+  remaining,
+  maxFlip,
+  onFlip,
+  disabled = false,
+  isActive = false,
+  remainingTime = 0
+}: FlipKilnBtnProps) {
+  return (
+    <WoodButton
+      onClick={onFlip}
+      disabled={disabled || remaining <= 0}
+      variant={isActive ? 'gold' : 'default'}
+      className={`px-6 py-4 text-lg flex items-center gap-3 ${isActive ? 'animate-pulse-glow' : ''}`}
+    >
+      <span className="text-2xl">🔄</span>
+      <div className="flex flex-col items-start">
+        <span>翻窖</span>
+        <span className="text-sm opacity-80">
+          {isActive
+            ? `生效中 ${remainingTime.toFixed(1)}s`
+            : `剩余 ${remaining} / ${maxFlip}`}
+        </span>
+      </div>
+      <div className="flex gap-1 ml-2">
+        {Array.from({ length: maxFlip }, (_, i) => (
+          <div
+            key={i}
+            className={`w-4 h-4 rounded-full ${
+              isActive ? 'bg-kiln-gold animate-pulse' : i < remaining ? 'bg-kiln-gold' : 'bg-kiln-charcoal/50'
+            }`}
+          />
+        ))}
+      </div>
+    </WoodButton>
+  );
+}

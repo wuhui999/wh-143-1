@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useGameStore } from '../store/useGameStore';
+import { useGameStore, MAX_FLIP_KILN } from '../store/useGameStore';
 import { useGameLoop } from '../hooks/useGameLoop';
 import { TempCurve } from '../components/Kiln/TempCurve';
 import { KilnBody } from '../components/Kiln/KilnBody';
-import { AddWoodBtn, HarvestBtn } from '../components/Controls/WoodButton';
+import { AddWoodBtn, HarvestBtn, FlipKilnBtn } from '../components/Controls/WoodButton';
 import { WeatherIndicator } from '../components/Weather/WeatherIndicator';
 import { getScoreComment } from '../utils/scoring';
 import { GAME_DURATION } from '../config/levels';
@@ -22,8 +22,17 @@ export function KilnPage() {
     result,
     optimalWindowActive,
     gameTime,
+    weatherWarning,
+    weatherWarningTimer,
+    flipKilnRemaining,
+    flipKilnActive,
+    flipKilnTimer,
+    statsAddWoodUsed,
+    statsFlipKilnUsed,
+    statsWarningActions,
     startGame,
     addWood,
+    flipKiln,
     harvest,
     getCurrentLevel,
     clearResult,
@@ -72,6 +81,12 @@ export function KilnPage() {
     }
   };
 
+  const warningMessage = weatherWarning === 'wind'
+    ? '💨 大风将至，注意保温！'
+    : weatherWarning === 'rain'
+    ? '🌧️ 降雨将至，注意保温！'
+    : '';
+
   if (showResult && result) {
     const comment = getScoreComment(result, temperature, level.optimalTempRange);
     const passed = result.total >= level.targetScore;
@@ -104,6 +119,24 @@ export function KilnPage() {
               <span className="font-bold text-kiln-gold">
                 {temperature < level.optimalTempRange[0] ? '🥶' : temperature > level.optimalTempRange[1] ? '🔥' : '✨'} {Math.round(temperature)}°C
               </span>
+            </div>
+          </div>
+
+          <div className="bg-kiln-charcoal/50 rounded-xl p-4 mb-4">
+            <div className="text-kiln-gold font-bold mb-2 text-center">📊 本局操作统计</div>
+            <div className="grid grid-cols-3 gap-2 text-center text-sm">
+              <div className="bg-kiln-dark/50 rounded-lg p-2">
+                <div className="text-kiln-light/70 text-xs">添柴</div>
+                <div className="text-white font-bold text-xl">{statsAddWoodUsed}次</div>
+              </div>
+              <div className="bg-kiln-dark/50 rounded-lg p-2">
+                <div className="text-kiln-light/70 text-xs">翻窖</div>
+                <div className="text-white font-bold text-xl">{statsFlipKilnUsed}次</div>
+              </div>
+              <div className="bg-kiln-dark/50 rounded-lg p-2">
+                <div className="text-kiln-light/70 text-xs">预警期操作</div>
+                <div className="text-white font-bold text-xl">{statsWarningActions}次</div>
+              </div>
             </div>
           </div>
 
@@ -197,6 +230,12 @@ export function KilnPage() {
         </div>
       </div>
 
+      {weatherWarning && (
+        <div className="bg-yellow-500 text-kiln-dark text-center py-2 px-4 rounded-lg mb-4 font-bold text-lg shadow-lg animate-pulse border-2 border-yellow-300">
+          ⚠️ {warningMessage} ({weatherWarningTimer.toFixed(1)}s)
+        </div>
+      )}
+
       {isPlaying && Math.ceil(GAME_DURATION - gameTime) <= 10 && (
         <div className="bg-red-600 text-white text-center py-2 px-4 rounded-lg mb-4 font-bold text-lg animate-pulse shadow-lg">
           ⚠️ 倒计时 {Math.ceil(GAME_DURATION - gameTime)} 秒！快出窖！
@@ -223,12 +262,20 @@ export function KilnPage() {
         />
       </div>
 
-      <div className="flex justify-center gap-4 mt-6">
+      <div className="flex justify-center gap-3 mt-6 flex-wrap">
         <AddWoodBtn
           remaining={addWoodRemaining}
           maxWood={level.maxAddWood}
           onAdd={addWood}
           disabled={!isPlaying}
+        />
+        <FlipKilnBtn
+          remaining={flipKilnRemaining}
+          maxFlip={MAX_FLIP_KILN}
+          onFlip={flipKiln}
+          disabled={!isPlaying}
+          isActive={flipKilnActive}
+          remainingTime={flipKilnTimer}
         />
         <HarvestBtn
           onHarvest={harvest}

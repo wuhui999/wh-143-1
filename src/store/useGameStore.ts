@@ -5,10 +5,16 @@ import { calculateTemperature, getSmokeColor, isInOptimalWindow } from '../utils
 import { calculateScore, getStars } from '../utils/scoring';
 import { getOrCreateSave, saveGame, updateLevelProgress } from '../utils/storage';
 
+export const FLIP_KILN_TEMP_BOOST = 15;
+export const FLIP_KILN_DURATION = 5;
+export const WEATHER_WARNING_DURATION = 3;
+export const MAX_FLIP_KILN = 1;
+
 interface GameStore extends GameState {
   gameSave: GameSave;
   startGame: (levelId: number) => void;
   addWood: () => void;
+  flipKiln: () => void;
   harvest: () => void;
   updateTick: () => void;
   setWeather: (weather: WeatherType) => void;
@@ -32,6 +38,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   optimalWindowActive: false,
   addWoodBonus: 0,
   weatherTimer: 0,
+  flipKilnRemaining: MAX_FLIP_KILN,
+  flipKilnActive: false,
+  flipKilnTimer: 0,
+  weatherWarning: null,
+  weatherWarningTimer: 0,
+  statsAddWoodUsed: 0,
+  statsFlipKilnUsed: 0,
+  statsWarningActions: 0,
   gameSave: getOrCreateSave(),
 
   getCurrentLevel: () => {
@@ -54,7 +68,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       result: null,
       optimalWindowActive: false,
       addWoodBonus: 0,
-      weatherTimer: 0
+      weatherTimer: 0,
+      flipKilnRemaining: MAX_FLIP_KILN,
+      flipKilnActive: false,
+      flipKilnTimer: 0,
+      weatherWarning: null,
+      weatherWarningTimer: 0,
+      statsAddWoodUsed: 0,
+      statsFlipKilnUsed: 0,
+      statsWarningActions: 0
     });
   },
 
@@ -62,10 +84,30 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const state = get();
     if (state.addWoodRemaining <= 0 || !state.isPlaying) return;
 
+    const inWarning = state.weatherWarning !== null;
+
     set({
       addWoodRemaining: state.addWoodRemaining - 1,
       addWoodBonus: state.addWoodBonus + ADD_WOOD_TEMP,
-      temperature: Math.min(350, state.temperature + ADD_WOOD_TEMP * 0.5)
+      temperature: Math.min(350, state.temperature + ADD_WOOD_TEMP * 0.5),
+      statsAddWoodUsed: state.statsAddWoodUsed + 1,
+      statsWarningActions: inWarning ? state.statsWarningActions + 1 : state.statsWarningActions
+    });
+  },
+
+  flipKiln: () => {
+    const state = get();
+    if (state.flipKilnRemaining <= 0 || !state.isPlaying) return;
+
+    const inWarning = state.weatherWarning !== null;
+
+    set({
+      flipKilnRemaining: state.flipKilnRemaining - 1,
+      flipKilnActive: true,
+      flipKilnTimer: FLIP_KILN_DURATION,
+      temperature: Math.min(350, state.temperature + FLIP_KILN_TEMP_BOOST),
+      statsFlipKilnUsed: state.statsFlipKilnUsed + 1,
+      statsWarningActions: inWarning ? state.statsWarningActions + 1 : state.statsWarningActions
     });
   },
 
@@ -90,12 +132,26 @@ export const useGameStore = create<GameStore>((set, get) => ({
     const newTime = state.gameTime + 0.1;
     const newAddWoodBonus = Math.max(0, state.addWoodBonus - ADD_WOOD_BONUS_DECAY);
 
-    const newTemp = calculateTemperature(
+    let newFlipKilnActive = state.flipKilnActive;
+    let newFlipKilnTimer = Math.max(0, state.flipKilnTimer - 0.1);
+    if (newFlipKilnTimer <= 0) {
+      newFlipKilnActive = false;
+      newFlipKilnTimer = 0;
+    }
+
+    let baseTemp = calculateTemperature(
       newTime,
       state.weather,
       newAddWoodBonus,
       level.tempChangeSpeed
     );
+
+    if (newFlipKilnActive && baseTemp < state.temperature) {
+      const diff = state.temperature - baseTemp;
+      baseTemp = state.temperature - diff * 0.5;
+    }
+
+    const newTemp = Math.max(50, Math.min(350, baseTemp));
 
     const newSmokeColor = getSmokeColor(newTemp, level.optimalTempRange);
     const inOptimal = isInOptimalWindow(newTemp, level.optimalTempRange);
@@ -107,17 +163,28 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     let newWeather = state.weather;
     let newWeatherTimer = state.weatherTimer + 0.1;
+    let newWeatherWarning = state.weatherWarning;
+    let newWeatherWarningTimer = Math.max(0, state.weatherWarningTimer - 0.1);
 
-    if (newWeatherTimer > 8 && state.weather !== 'sunny') {
-      newWeather = 'sunny';
+    if (state.weatherWarning && newWeatherWarningTimer <= 0) {
+      newWeather = state.weatherWarning;
+      newWeatherWarning = null;
       newWeatherTimer = 0;
-    } else if (newWeatherTimer > 5 && Math.random() < level.weatherProbability * 0.1) {
-      newWeather = Math.random() < 0.5 ? 'wind' : 'rain';
+    } else if (!state.weatherWarning && newWeatherTimer > 5 && state.weather === 'sunny') {
+      if (Math.random() < level.weatherProbability * 0.1) {
+        const upcomingWeather: WeatherType = Math.random() < 0.5 ? 'wind' : 'rain';
+        newWeatherWarning = upcomingWeather;
+        newWeatherWarningTimer = WEATHER_WARNING_DURATION;
+        newWeatherTimer = 0;
+      }
+    }
+
+    if (!state.weatherWarning && newWeatherTimer > 8 && state.weather !== 'sunny') {
+      newWeather = 'sunny';
       newWeatherTimer = 0;
     }
 
     if (newTime >= GAME_DURATION) {
-      const level = state.getCurrentLevel();
       const score = calculateScore(newTemp, level.optimalTempRange);
       set({
         gameTime: GAME_DURATION,
@@ -128,6 +195,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
         addWoodBonus: newAddWoodBonus,
         weather: newWeather,
         weatherTimer: newWeatherTimer,
+        flipKilnActive: newFlipKilnActive,
+        flipKilnTimer: newFlipKilnTimer,
+        weatherWarning: newWeatherWarning,
+        weatherWarningTimer: newWeatherWarningTimer,
         isPlaying: false,
         result: score
       });
@@ -142,12 +213,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       optimalWindowActive: inOptimal,
       addWoodBonus: newAddWoodBonus,
       weather: newWeather,
-      weatherTimer: newWeatherTimer
+      weatherTimer: newWeatherTimer,
+      flipKilnActive: newFlipKilnActive,
+      flipKilnTimer: newFlipKilnTimer,
+      weatherWarning: newWeatherWarning,
+      weatherWarningTimer: newWeatherWarningTimer
     });
   },
 
   setWeather: (weather: WeatherType) => {
-    set({ weather, weatherTimer: 0 });
+    set({ weather, weatherTimer: 0, weatherWarning: null, weatherWarningTimer: 0 });
   },
 
   resetGame: () => {
@@ -162,7 +237,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
       result: null,
       optimalWindowActive: false,
       addWoodBonus: 0,
-      weatherTimer: 0
+      weatherTimer: 0,
+      flipKilnRemaining: MAX_FLIP_KILN,
+      flipKilnActive: false,
+      flipKilnTimer: 0,
+      weatherWarning: null,
+      weatherWarningTimer: 0,
+      statsAddWoodUsed: 0,
+      statsFlipKilnUsed: 0,
+      statsWarningActions: 0
     });
   },
 
